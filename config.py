@@ -13,7 +13,8 @@ algorithm_params = {
         n_epochs=10,
         n_steps=1024,
         policy_kwargs=dict(activation_fn=torch.nn.ReLU,
-                           net_arch=[dict(pi=[500, 300], vf=[500, 300])])
+                           #net_arch=[dict(pi=[500, 300], vf=[500, 300])])
+                           net_arch={'pi': [500, 300], 'vf': [500, 300]}),
     ),
     "SAC": dict(
         learning_rate=lr_schedule(5e-4, 1e-6, 2),
@@ -83,14 +84,27 @@ reward_params = {
         max_angle_center_lane=90,
         penalty_reward=-10,
     ),
+    "traj_reward_no_early": dict(
+        early_stop = False,
+        min_speed = 5.0,
+        max_speed = 35.0,
+        target_speed = 15.0,
+        max_distance = 3.0,
+        max_std_center_lane = 0.6,
+        max_angle_center_lane = 120,
+        penalty_reward = -1,
+    )
 }
 
 _CONFIG_1 = {
-    "algorithm": "PPO",
-    "algorithm_params": algorithm_params["PPO"],
-    "action_smoothing": 0.75,
-    "reward_fn": "reward_fn5",
-    "reward_params": reward_params["reward_fn_5_best"],
+    "algorithm": "SAC",
+    "algorithm_params": algorithm_params["SAC_BEST"],
+    # "action_smoothing": 0.75,
+    "action_smoothing": 0.4,
+    # "reward_fn": "reward_fn5",
+    "reward_fn": "reward_fn_waypoints",
+    # "reward_params": reward_params["reward_fn_5_best"],
+    "reward_params": reward_params["traj_reward_no_early"],
     "obs_sensor": "semantic",
     "obs_res": (160, 80),
 }

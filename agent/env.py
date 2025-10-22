@@ -36,7 +36,15 @@ class CarlaEnv(gym.Env):
         self.obs_sensor = obs_sensor
         self.control = carla.VehicleControl()
         self.action_space = self.actions.get_action_space()
-        self.observation_space = self.observations.get_observation_space()
+        # self.observation_space = self.observations.get_observation_space()
+        from gym import spaces
+
+        self.K = 3  # 取3个前视路点
+        img_space = spaces.Box(low=0, high=255, shape=(3, self.obs_height, self.obs_width), dtype=np.uint8)
+        vec_space = spaces.Box(low=-1e4, high=1e4, shape=(2 * self.K,), dtype=np.float32)
+        self.observation_space = spaces.Dict({"image": img_space, "waypoints": vec_space})
+
+
         self.max_distance = 3000
         self.action_smoothing = action_smoothing
         self.reward_fn = (lambda x: 0) if not callable(reward_fn) else reward_fn
@@ -265,7 +273,16 @@ class CarlaEnv(gym.Env):
             'mean_reward': (self.total_reward / self.step_count)
         }
 
-        return self.get_semantic_image(self.observation), self.last_reward, self.terminate or self.success_state, info
+        img_hwc = self.get_semantic_image(self.observation)           # (H,W,3), uint8
+        img_chw = np.transpose(img_hwc, (2, 0, 1))                    # (3,H,W)
+
+        wp_feats = self.get_waypoint_features(k=self.K, step_ahead=3)  # (2K,)
+
+        obs = {"image": img_chw, "waypoints": wp_feats}
+
+        return obs, self.last_reward, self.terminate or self.success_state, info
+
+        # return self.get_semantic_image(self.observation), self.last_reward, self.terminate or self.success_state, info
     
     def close(self):
         pygame.quit()
@@ -391,6 +408,38 @@ class CarlaEnv(gym.Env):
         obs = self.observation_buffer
         self.observation_buffer = None
         return obs
+    
+    # BOBOJA
+    def get_waypoint_features(self, k = 3, step_ahead=3):
+        """
+        Returns distance and angle difference between the vehicle heading
+        and the next waypoint (blue point) direction.
+        k: number of waypoints to consider
+        step_ahead: step size between waypoints
+        """
+        feats = []
+        ego_tf = self.vehicle.get_transform()
+        R = np.deg2rad(ego_tf.rotation.yaw)
+        c, s = np.cos(R), np.sin(R)
+
+        def world_to_ego(loc):
+            # 平移到车体原点
+            dx = loc.x - ego_tf.location.x
+            dy = loc.y - ego_tf.location.y
+            # 旋转到车体坐标系（前为 +x，左为 +y）
+            ex =  dx * c + dy * s
+            ey = -dx * s + dy * c
+            return ex, ey
+
+        # 从当前索引往前取未来 k 个路点
+        for i in range(1, k + 1):
+            idx = min(self.current_waypoint_index + i * step_ahead, len(self.route_waypoints) - 1)
+            wp, _ = self.route_waypoints[idx]
+            ex, ey = world_to_ego(wp.transform.location)
+            feats.extend([ex, ey])
+
+        return np.array(feats, dtype=np.float32)
+
 
     def _get_viewer_image(self):
         while self.viewer_image_buffer is None:

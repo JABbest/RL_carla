@@ -50,7 +50,9 @@ env = CarlaEnv(host=args["host"], port=args["port"], town=args["town"],
                     allow_spectator=True, allow_render=args["no_render"])
 
 if reload_model == "":
-    model = AlgorithmRL('CnnPolicy', env, verbose=2, tensorboard_log=log_dir, device='cuda',
+    #model = AlgorithmRL('CnnPolicy', env, verbose=2, tensorboard_log=log_dir, device='cuda',
+    #                    **CONFIG["algorithm_params"])
+    model = AlgorithmRL('MultiInputPolicy', env, verbose=2, tensorboard_log=log_dir, device='cuda',
                         **CONFIG["algorithm_params"])
     model_suffix = f"{int(time.time())}_id{args['config']}"
 else:
